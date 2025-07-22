@@ -46,7 +46,7 @@ contract('Perper', function(accounts) {
             return tokenInstance.transfer(accounts[1], 250000, {from: accounts[0]});
         }).then(function(receipt){
             assert.equal(receipt.logs.length, 1, 'triggers event');
-             assert.equal(receipt.logs[0].event, 'Transfer', 'should be "Transfer" event');
+            assert.equal(receipt.logs[0].event, 'Transfer', 'should be "Transfer" event');
             assert.equal(receipt.logs[0].args._from, accounts[0], 'logs the account the tokens are transferred from');
             assert.equal(receipt.logs[0].args._to, accounts[1], 'logs the account the tokens are transferred to');
             assert.equal(receipt.logs[0].args._value, 250000, 'logs the transfer amount');
@@ -57,6 +57,25 @@ contract('Perper', function(accounts) {
             return tokenInstance.balanceOf(accounts[0]);
         }).then(function(balance){
             assert.equal(balance.toNumber(), 750000, 'oduzeo poslate tokene');
+        })
+    })
+
+    it('approves tokens for transfer', function(){
+        return Perper.deployed().then(function(instance){
+            tokenInstance = instance;
+            return tokenInstance.approve.call(accounts[1], 100)
+        }).then(function(success) {
+            assert.equal(success, true, 'returns true')
+            return tokenInstance.approve(accounts[1], 100)
+        }).then(function(receipt){
+            assert.equal(receipt.logs.length, 1, 'triggers event');
+            assert.equal(receipt.logs[0].event, 'Approval', 'should be "Approval" event');
+            assert.equal(receipt.logs[0].args._owner, accounts[0], 'logs the account the tokens are aprovedred from');
+            assert.equal(receipt.logs[0].args._spender, accounts[1], 'logs the account the tokens are aprovedred to');
+            assert.equal(receipt.logs[0].args._value, 100, 'logs the aproved amount');
+            return tokenInstance.allowance(accounts[0], accounts[1])
+        }).then(function(allowance){
+            assert.equal(allowance.toNumber(), 100, 'store allowance adrese')
         })
     })
 
