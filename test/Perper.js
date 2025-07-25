@@ -1,123 +1,87 @@
-//test
+const Perper = artifacts.require("Perper");
+const { expect } = require("chai");
 
-var Perper = artifacts.require("./Perper.sol")
+contract("Perper", (accounts) => {
+  const [owner, addr1, addr2] = accounts;
+  let perperInstance;
 
-contract('Perper', function(accounts) {
-    var tokenInstance;
+  beforeEach(async () => {
+    perperInstance = await Perper.new(1000); // deploy sa početnim supply
+  });
 
-    it('pokrece se pametni ugovor sa tacnim vrijednostima', function(){
-        return Perper.deployed().then(function(instance){
-            tokenInstance = instance;
-            return tokenInstance.name();
-        }).then(function(name){
-            assert.equal(name, 'Perper', 'tacno ime')
-            return tokenInstance.symbol()
-        }).then(function(symbol){
-            assert.equal(symbol, 'PRP', 'tacan simbol')
-            return tokenInstance.standard();
-        }).then(function(standard){
-            assert.equal(standard, 'Perper v1.0', 'ima tacnu verziju(standard)')
-        })
-    })
+  it("Treba da postavi ispravan naziv i simbol", async () => {
+    const name = await perperInstance.name();
+    const symbol = await perperInstance.symbol();
+    expect(name).to.equal("Perper");
+    expect(symbol).to.equal("PRP");
+  });
 
-    it('sets total suply', function(){
-        return Perper.deployed().then(function(instance){
-            tokenInstance = instance
-            return tokenInstance.totalSuply();
-        }).then(function(totalSuply){
-            assert.equal(totalSuply.toNumber(), 1000000, 'da li je totalSuply 1 milion')
-            return tokenInstance.balanceOf(accounts[0])
-        }).then(function(adminBalance){
-            assert.equal(adminBalance.toNumber(), 1000000, 'da li je ukupan broj tokena na adminovom nalogu')
-        })
-    })
+  it("Treba da dodijeli sve tokene vlasniku", async () => {
+    const totalSupply = await perperInstance.totalSupply();
+    const ownerBalance = await perperInstance.balanceOf(owner);
+    expect(ownerBalance.toString()).to.equal(totalSupply.toString());
+  });
 
+  it("Treba da izvrši transfer tokena između računa", async () => {
+    await perperInstance.transfer(addr1, 100, { from: owner });
+    const addr1Balance = await perperInstance.balanceOf(addr1);
+    expect(addr1Balance.toString()).to.equal("100");
+  });
 
-    it('transfer tokena', function(){
-        return Perper.deployed().then(function(instance){
-            tokenInstance = instance;
-//test slanja veceg broja tokenea nego sto korisnik posjeduje
-            return tokenInstance.transfer.call(accounts[1], 999999999999999);
-        }).then(assert.fail).catch(function(error){
-            assert(error.message.indexOf('revert') >= 0, 'error message mora imati revert');
-            return tokenInstance.transfer.call(accounts[1], 250000, {from: accounts[0]});
-        }).then(function(success){
-            assert.equal(success, true, 'returns true')
-            return tokenInstance.transfer(accounts[1], 250000, {from: accounts[0]});
-        }).then(function(receipt){
-            assert.equal(receipt.logs.length, 1, 'triggers event');
-            assert.equal(receipt.logs[0].event, 'Transfer', 'should be "Transfer" event');
-            assert.equal(receipt.logs[0].args._from, accounts[0], 'logs the account the tokens are transferred from');
-            assert.equal(receipt.logs[0].args._to, accounts[1], 'logs the account the tokens are transferred to');
-            assert.equal(receipt.logs[0].args._value, 250000, 'logs the transfer amount');
-            return tokenInstance.balanceOf(accounts[1]);
+  it("Treba da odbije transfer ako saldo nije dovoljan", async () => {
+    try {
+      await perperInstance.transfer(owner, 1, { from: addr1 });
+    } catch (error) {
+      expect(error.message).to.include("Insufficient balance");
+    }
+  });
 
-        }).then(function(balance){
-            assert.equal(balance.toNumber(), 250000, 'dodaje tokene');
-            return tokenInstance.balanceOf(accounts[0]);
-        }).then(function(balance){
-            assert.equal(balance.toNumber(), 750000, 'oduzeo poslate tokene');
-        })
-    })
+  it("Treba da izvrši approve i transferFrom", async () => {
+    await perperInstance.approve(addr1, 50, { from: owner });
+    await perperInstance.transferFrom(owner, addr2, 50, { from: addr1 });
+    const addr2Balance = await perperInstance.balanceOf(addr2);
+    expect(addr2Balance.toString()).to.equal("50");
+  });
 
-    it('approves tokens for transfer', function(){
-        return Perper.deployed().then(function(instance){
-            tokenInstance = instance;
-            return tokenInstance.approve.call(accounts[1], 100)
-        }).then(function(success) {
-            assert.equal(success, true, 'returns true')
-            return tokenInstance.approve(accounts[1], 100)
-        }).then(function(receipt){
-            assert.equal(receipt.logs.length, 1, 'triggers event');
-            assert.equal(receipt.logs[0].event, 'Approval', 'should be "Approval" event');
-            assert.equal(receipt.logs[0].args._owner, accounts[0], 'logs the account the tokens are aprovedred from');
-            assert.equal(receipt.logs[0].args._spender, accounts[1], 'logs the account the tokens are aprovedred to');
-            assert.equal(receipt.logs[0].args._value, 100, 'logs the aproved amount');
-            return tokenInstance.allowance(accounts[0], accounts[1])
-        }).then(function(allowance){
-            assert.equal(allowance.toNumber(), 100, 'store allowance adrese')
-        })
-    })
+  describe("Mint and Burn", () => {
+  it("Treba da omogući owner-u da mintuje nove tokene", async () => {
+    const initialSupply = await perperInstance.totalSupply();
+    await perperInstance.mint(owner, 100, { from: owner });
+    const newSupply = await perperInstance.totalSupply();
+    const ownerBalance = await perperInstance.balanceOf(owner);
 
-    it('handles token transfers', function(){
-        return Perper.deployed().then(function(instance){
-        tokenInstance = instance;    
-        fromAccount = accounts[2]
-        toAccount = accounts[3]
-        spendingAccount = accounts[4]
-        //transfer tokens
-        return tokenInstance.transfer(fromAccount, 100, { from: accounts[0]})
-    }).then(function(receipt){
-        //approve spending account
-        return tokenInstance.approve(spendingAccount, 10, {from: fromAccount})
-    }).then(function(receipt){
-        //try transfer more than account have
-        return tokenInstance.transferFrom(fromAccount, toAccount, 9999, {from: spendingAccount})
-    }).then(assert.fail).catch(function(error){
-        assert(error.message.indexOf('revert') >= 0), 'cant transfer more than you have'
-        return tokenInstance.transferFrom(fromAccount, toAccount, 20, {from: spendingAccount})
-    }).then(assert.fail).catch(function(error){
-        assert(error.message.indexOf('revert') >= 0, 'canot transfer more than approved ammount of tokens')
-        return tokenInstance.transferFrom.call(fromAccount, toAccount, 10, {from: spendingAccount})
-    }).then(function(success){
-        assert.equal(success, true)
-        return tokenInstance.transferFrom(fromAccount, toAccount, 10, {from: spendingAccount})
-    }).then(function(receipt){
-            assert.equal(receipt.logs.length, 1, 'triggers event');
-            assert.equal(receipt.logs[0].event, 'Transfer', 'should be "Transfer" event');
-            assert.equal(receipt.logs[0].args._from, fromAccount, 'logs the account the tokens are aprovedred from');
-            assert.equal(receipt.logs[0].args._to, toAccount, 'logs the account the tokens are aprovedred to');
-            assert.equal(receipt.logs[0].args._value, 10, 'logs the aproved amount');
-            return tokenInstance.balanceOf(fromAccount)
-        }).then(function(balance){
-            assert.equal(balance.toNumber(), 90, 'deducts amout from sender')
-            return tokenInstance.balanceOf(toAccount);
-        }).then(function(balance){
-            assert.equal(balance.toNumber(), 10, 'add amout to reciever')
-            return tokenInstance.allowance(fromAccount, spendingAccount)
-        }).then(function(allowance){
-            assert.equal(allowance, 0, 'deducts the amount from allowance')
-        })
-})
+    expect(newSupply.toString()).to.equal(initialSupply.addn(100).toString());
+    expect(ownerBalance.toString()).to.equal(newSupply.toString());
+  });
 
-})
+  it("Treba da spriječi ne-owner korisnike da mintuju tokene", async () => {
+    try {
+      await perperInstance.mint(addr1, 100, { from: addr1 });
+      assert.fail("Non-owner ne bi smio mintovati tokene");
+    } catch (error) {
+      expect(error.message).to.include("Only owner can mint tokens");
+    }
+  });
+
+  it("Treba da omogući burn tokena iz owner balansa", async () => {
+    const initialSupply = await perperInstance.totalSupply();
+    await perperInstance.burn(50, { from: owner });
+    const newSupply = await perperInstance.totalSupply();
+    const ownerBalance = await perperInstance.balanceOf(owner);
+
+    expect(newSupply.toString()).to.equal(initialSupply.subn(50).toString());
+    expect(ownerBalance.toString()).to.equal(newSupply.toString());
+  });
+
+  it("Treba da spriječi burn više tokena nego što korisnik ima", async () => {
+    try {
+      await perperInstance.burn(999999, { from: addr1 }); // addr1 nema toliko tokena
+      assert.fail("Burn bi trebao failovati ako nema dovoljno tokena");
+    } catch (error) {
+      expect(error.message).to.include("Insufficient balance to burn");
+    }
+  });
+});
+
+});
+

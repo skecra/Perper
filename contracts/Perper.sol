@@ -2,75 +2,82 @@
 pragma solidity >=0.4.22 <0.9.0;
 
 contract Perper {
+    // Osnovne karakteristike tokena
+    string public name = "Perper";
+    string public symbol = "PRP";
+    uint8 public decimals = 18; // Standard za ERC-20
+    uint256 public totalSupply;
 
-  uint256 public totalSuply;
-  //ime
-  string public name = "Perper";
-  //simbol
-  string public symbol = "PRP";
-  //standard
-  string public standard = "Perper v1.0";
+    address public owner;
 
-  event Transfer(
-    address indexed _from,
-    address indexed _to,
-    uint256 _value
-  );
+    // Balansi korisnika
+    mapping(address => uint256) public balanceOf;
+    // Dozvole (allowance)
+    mapping(address => mapping(address => uint256)) public allowance;
 
-  event Approval(
-    address indexed _owner,
-    address indexed _spender,
-    uint256 _value
-  );
+    // Eventi
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
 
-  mapping(address => uint256) public balanceOf;
-  //allowance
-  mapping(address => mapping(address => uint256)) public allowance;
+    // Konstruktor
+    constructor(uint256 _initialSupply) public {
+        owner = msg.sender;
+        totalSupply = _initialSupply * 10 ** uint256(decimals);
+        balanceOf[msg.sender] = totalSupply;
+    }
 
-  constructor(uint256 _initialSupply) public {
-    balanceOf[msg.sender] = _initialSupply;
-    totalSuply = _initialSupply;
-    //prebaci sve tokene adminu
+    // Transfer funkcija
+    function transfer(address _to, uint256 _value) public returns (bool success) {
+        require(_to != address(0), "Invalid recipient address");
+        require(balanceOf[msg.sender] >= _value, "Insufficient balance");
 
-  }
+        balanceOf[msg.sender] -= _value;
+        balanceOf[_to] += _value;
 
-  function transfer(address _to, uint256 _value)  public returns (bool success){
+        emit Transfer(msg.sender, _to, _value);
+        return true;
+    }
 
-    require(balanceOf[msg.sender] >= _value, "nema dovoljno na racunu");
+    // Dozvola za trošenje tokena
+    function approve(address _spender, uint256 _value) public returns (bool success) {
+        allowance[msg.sender][_spender] = _value;
+        emit Approval(msg.sender, _spender, _value);
+        return true;
+    }
 
-    balanceOf[msg.sender] -= _value;
-    balanceOf[_to] += _value;
+    // Transfer tokena preko dozvole
+    function transferFrom(address _from, address _to, uint256 _value) public returns (bool success) {
+        require(_to != address(0), "Invalid recipient address");
+        require(balanceOf[_from] >= _value, "Insufficient balance");
+        require(allowance[_from][msg.sender] >= _value, "Allowance exceeded");
 
-    emit Transfer(msg.sender, _to, _value);
+        balanceOf[_from] -= _value;
+        balanceOf[_to] += _value;
+        allowance[_from][msg.sender] -= _value;
 
-    return true;
+        emit Transfer(_from, _to, _value);
+        return true;
+    }
 
-  }
+    // Mint (kreiranje novih tokena)
+    function mint(address _to, uint256 _value) public returns (bool success) {
+        require(msg.sender == owner, "Only owner can mint tokens");
 
-  function approve(address _spender, uint256 _value) public returns (bool success) {
+        balanceOf[_to] += _value;
+        totalSupply += _value;
 
-    allowance[msg.sender][_spender] = _value;
+        emit Transfer(address(0), _to, _value);
+        return true;
+    }
 
-    emit Approval(msg.sender, _spender, _value);
+    // Burn (uništavanje tokena)
+    function burn(uint256 _value) public returns (bool success) {
+        require(balanceOf[msg.sender] >= _value, "Insufficient balance to burn");
 
-    return true;
+        balanceOf[msg.sender] -= _value;
+        totalSupply -= _value;
 
-  }
-
-  function transferFrom(address _from, address _to, uint256 _value) public returns (bool success) {
-
-    require(_value <= balanceOf[_from]);
-    require(_value <= allowance[_from][msg.sender]);
-
-    emit Transfer(_from, _to, _value);
-
-    balanceOf[_from] -= _value;
-    balanceOf[_to] += _value;
-
-    allowance[_from][msg.sender] -= _value;
-
-    return true;
-
-  }
- 
+        emit Transfer(msg.sender, address(0), _value);
+        return true;
+    }
 }
