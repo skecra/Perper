@@ -10,6 +10,9 @@ contract Perper {
 
     address public owner;
 
+    // Cijena tokena u WEI (1 ETH = 10^18 wei)
+    uint256 public tokenPrice = 0.0001 ether; // 1 PRP = 0.01 ETH
+
     // Balansi korisnika
     mapping(address => uint256) public balanceOf;
     // Dozvole (allowance)
@@ -18,6 +21,7 @@ contract Perper {
     // Eventi
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
+    event TokensPurchased(address indexed buyer, uint256 amountPRP, uint256 costETH);
 
     // Konstruktor
     constructor(uint256 _initialSupply) public {
@@ -79,5 +83,40 @@ contract Perper {
 
         emit Transfer(msg.sender, address(0), _value);
         return true;
+    }
+
+    // Funkcija za kupovinu tokena
+    function buyTokens() public payable returns (bool success) {
+        require(msg.value > 0, "Send ETH to buy tokens");
+
+        // Izračun koliko PRP kupac dobija
+        uint256 amountToBuy = (msg.value * 10**uint256(decimals)) / tokenPrice;
+        require(balanceOf[owner] >= amountToBuy, "Not enough tokens in reserve");
+
+        // Prebaci tokene sa ownera na kupca
+        balanceOf[owner] -= amountToBuy;
+        balanceOf[msg.sender] += amountToBuy;
+
+        emit Transfer(owner, msg.sender, amountToBuy);
+        emit TokensPurchased(msg.sender, amountToBuy, msg.value);
+        return true;
+    }
+
+    // Promjena cijene tokena (samo owner)
+    function setTokenPrice(uint256 _newPriceWei) public {
+        require(msg.sender == owner, "Only owner can set price");
+        tokenPrice = _newPriceWei;
+    }
+
+    function withdrawETH(uint256 _amountWei) public {
+        require(msg.sender == owner, "Only owner can withdraw");
+        require(address(this).balance >= _amountWei, "Not enough ETH in contract");
+        address(uint160(owner)).transfer(_amountWei);
+    }
+
+
+    // Fallback funkcija da se ne izgubi ETH ako neko pošalje direktno
+    function() external payable {
+        buyTokens();
     }
 }
